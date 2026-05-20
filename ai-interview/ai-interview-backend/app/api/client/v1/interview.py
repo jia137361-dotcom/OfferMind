@@ -3,8 +3,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.client.deps import get_current_user
-from app.schemas.client.interview import InterviewStart, AnswerSubmit
+from app.schemas.client.interview import InterviewStart, AnswerSubmit, AgentSetupRequest
 from app.services.client.interview_service import interview_service
+from app.services.client.agent_service import InterviewAgentService
 from app.schemas.response import ApiResponse
 from app.models.user import User
 
@@ -114,19 +115,17 @@ async def get_interviews(
     return ApiResponse.success(data=result)
 
 
-@router.delete("/{interview_id}")
-async def delete_interview(
-    interview_id: int,
+@router.post("/agent-setup")
+async def agent_setup_interview(
+    data: AgentSetupRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """删除面试记录"""
-    result = await interview_service.delete_interview(
-        db=db,
-        user_id=current_user.id,
-        interview_id=interview_id
-    )
+    """Agent 驱动的面试设置：自动解析简历→画像→岗位匹配→启动面试"""
+    agent = InterviewAgentService(db=db, user_id=current_user.id)
+    result = await agent.run_setup(resume_id=data.resume_id)
     return ApiResponse.success(data=result)
+
 
 @router.delete("/{interview_id}")
 async def delete_interview(

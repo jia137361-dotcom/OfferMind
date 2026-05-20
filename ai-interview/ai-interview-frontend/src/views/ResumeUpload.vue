@@ -1,15 +1,26 @@
 <template>
   <div class="container">
-    <div class="card" style="max-width:600px;margin:40px auto">
-      <h2 style="margin-bottom:20px">📄 上传简历 & 开始面试</h2>
+    <div class="card" style="max-width:620px;margin:40px auto">
+      <h1 class="section-title" style="margin-bottom:4px">创建专属 AI 模拟面试</h1>
+      <p class="section-subtitle" style="margin-bottom:20px">上传简历并填写目标岗位，系统将为你生成匹配岗位的面试内容。</p>
 
       <!-- Step 1: 上传简历 -->
       <div v-if="step === 1">
+        <div class="tips-card">
+          <div class="tips-icon">✨</div>
+          <div>
+            <div class="tips-title">AI 将基于你的简历与目标岗位生成面试题</div>
+            <div class="tips-desc">支持 PDF 简历，建议上传包含项目经历、技能栈和实习经历的完整版本。</div>
+          </div>
+        </div>
         <div class="form-group">
           <label>上传简历 (PDF)</label>
           <div class="upload-area" @click="$refs.fileInput.click()" @dragover.prevent @drop.prevent="onDrop">
             <input ref="fileInput" type="file" accept=".pdf" @change="onFileChange" hidden />
-            <p v-if="!file" style="color:#6b7280">点击或拖拽上传 PDF 简历</p>
+            <div v-if="!file">
+              <p class="upload-title">点击或拖拽上传 PDF 简历</p>
+              <p class="upload-desc">支持 PDF 格式，建议文件小于 10MB</p>
+            </div>
             <p v-else>📎 {{ file.name }}</p>
           </div>
         </div>
@@ -19,7 +30,7 @@
         </div>
         <p v-if="error" class="error">{{ error }}</p>
         <button class="btn-primary" style="width:100%" @click="handleUpload" :disabled="!file || uploading">
-          {{ uploading ? '上传中...' : '上传并解析简历' }}
+          {{ uploading ? '准备中...' : '开始 AI 面试准备' }}
         </button>
       </div>
 
@@ -367,17 +378,39 @@ async function handleStart() {
 
 <style scoped>
 .form-group { margin-bottom: 16px; }
-.form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #374151; }
-.upload-area {
-  border: 2px dashed #d1d5db; border-radius: 8px; padding: 40px;
-  text-align: center; cursor: pointer; transition: border-color 0.2s;
+
+.tips-card {
+  display: flex; gap: 12px; padding: 16px; margin-bottom: 22px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #EEF2FF, #EFF6FF);
+  border: 1px solid #DBEAFE;
 }
-.upload-area:hover { border-color: #4f46e5; }
+.tips-icon {
+  width: 36px; height: 36px; border-radius: 12px; background: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.tips-title { font-size: 15px; font-weight: 700; color: #1E293B; }
+.tips-desc { margin-top: 4px; font-size: 13px; color: #64748B; }
+
+.upload-area {
+  height: 130px; border-radius: 20px;
+  border: 2px dashed #CBD5E1;
+  background: linear-gradient(180deg, #F8FAFC, #FFFFFF);
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B; cursor: pointer; transition: all .2s ease;
+}
+.upload-area:hover {
+  border-color: var(--primary);
+  background: #F8FAFF;
+  box-shadow: 0 12px 30px rgba(99,102,241,.10);
+}
+.upload-title { font-size: 14px; font-weight: 500; }
+.upload-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
 .error { color: #ef4444; font-size: 13px; margin-bottom: 12px; }
 .parsed-info p { font-size: 14px; margin-bottom: 6px; line-height: 1.6; }
 
-/* 解析动画 */
-.parsing-stage { text-align: center; padding: 30px 0; }
+.parsing-stage { text-align: center; padding: 32px 0; }
 .parsing-icon { font-size: 48px; margin-bottom: 16px; animation: pulse 1.5s ease-in-out infinite; }
 .ai-face-anim { margin-bottom: 16px; animation: faceFloat 2s ease-in-out infinite; }
 @keyframes faceFloat {
@@ -386,50 +419,49 @@ async function handleStart() {
 }
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: .7; }
 }
-.parsing-stage h3 { font-size: 16px; color: #374151; margin-bottom: 20px; }
+.parsing-stage h3 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 20px; }
 .progress-bar-wrapper {
-  width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-bottom: 8px;
+  width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px;
 }
 .progress-bar {
-  height: 100%; border-radius: 4px; transition: width 0.3s ease;
-  background: linear-gradient(90deg, #4f46e5, #7c3aed, #a78bfa);
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
+  height: 100%; border-radius: 3px; transition: width .3s ease;
+  background: linear-gradient(90deg, var(--primary), #8b5cf6);
+  background-size: 200% 100%; animation: shimmer 2s linear infinite;
 }
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-.progress-text { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+.progress-text { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 .tips-area {
   min-height: 50px; display: flex; align-items: center; justify-content: center;
-  background: #f9fafb; border-radius: 10px; padding: 14px 20px;
+  background: #f8fafc; border-radius: var(--radius-sm); padding: 14px 20px;
 }
-.tip-text { font-size: 13px; color: #4b5563; line-height: 1.6; margin: 0; }
-.tip-fade-enter-active, .tip-fade-leave-active { transition: all 0.4s ease; }
+.tip-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+.tip-fade-enter-active, .tip-fade-leave-active { transition: all .4s ease; }
 .tip-fade-enter-from { opacity: 0; transform: translateY(8px); }
 .tip-fade-leave-to { opacity: 0; transform: translateY(-8px); }
 
-/* 分析报告 */
-.analysis-card { border: 1px solid #e5e7eb; }
+.analysis-card { border: 1px solid var(--border); }
 .analysis-score { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .score-badge {
-  width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center;
-  justify-content: center; color: white; font-size: 18px; font-weight: 700;
+  width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; color: #fff; font-size: 20px; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
 }
-.score-text { font-size: 14px; color: #6b7280; }
+.score-text { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
 .analysis-summary {
-  font-size: 14px; line-height: 1.8; color: #374151; margin-bottom: 16px;
-  padding: 10px 14px; background: #f9fafb; border-radius: 8px;
+  font-size: 14px; line-height: 1.8; color: var(--text); margin-bottom: 16px;
+  padding: 12px 16px; background: #f8fafc; border-radius: var(--radius-sm);
 }
 .analysis-section { margin-bottom: 14px; }
-.analysis-section h4 { font-size: 14px; margin-bottom: 8px; color: #374151; }
+.analysis-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
 .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag { padding: 3px 10px; border-radius: 12px; font-size: 12px; }
-.tag-green { background: #d1fae5; color: #065f46; }
-.tag-red { background: #fee2e2; color: #991b1b; }
+.tag { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.tag-green { background: #ecfdf5; color: #059669; }
+.tag-red { background: #fef2f2; color: #dc2626; }
 .analysis-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
 .analysis-two-col ul, .analysis-section ul { list-style: none; padding: 0; }
 .analysis-two-col li, .analysis-section li {

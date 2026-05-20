@@ -40,12 +40,13 @@ class InterviewService:
 
         parsed_resume = json.loads(resume.parsed_content)
 
-        # 通过 AI 生成面试题目
+        # 通过 AI 生成面试题目（传入 db 以启用 RAG 增强出题）
         questions = await AIService.generate_questions(
             parsed_resume=parsed_resume,
             target_position=target_position,
             difficulty=difficulty,
-            count=total_questions
+            count=total_questions,
+            db=db
         )
 
         # 创建面试记录
@@ -121,6 +122,10 @@ class InterviewService:
         questions = interview.questions_data
         current_question = questions[current_index]["question"]
 
+        # 提取参考答案和关键得分点（Feature 3：评分稳定性增强）
+        reference_answer = questions[current_index].get("reference_answer", "")
+        key_points = questions[current_index].get("key_points", [])
+
         # 保存候选人回答
         candidate_msg = InterviewMessage(
             interview_id=interview_id,
@@ -130,12 +135,14 @@ class InterviewService:
         )
         db.add(candidate_msg)
 
-        # 调用 AI 评估回答
+        # 调用 AI 评估回答（传入参考答案以提升评分稳定性）
         evaluation = await AIService.evaluate_answer(
             question=current_question,
             answer=answer,
             resume_context=parsed_resume,
-            chat_history=chat_history
+            chat_history=chat_history,
+            reference_answer=reference_answer,
+            key_points=key_points
         )
 
         score = float(evaluation.get("score", 5.0))
@@ -264,6 +271,10 @@ class InterviewService:
         questions = interview.questions_data
         current_question = questions[current_index]["question"]
 
+        # 提取参考答案和关键得分点
+        reference_answer = questions[current_index].get("reference_answer", "")
+        key_points = questions[current_index].get("key_points", [])
+
         # 保存候选人回答
         candidate_msg = InterviewMessage(
             interview_id=interview_id,
@@ -274,13 +285,15 @@ class InterviewService:
         db.add(candidate_msg)
         await db.flush()
 
-        # 流式评估回答
+        # 流式评估回答（传入参考答案）
         full_text = ""
         async for chunk in AIService.evaluate_answer_stream(
             question=current_question,
             answer=answer,
             resume_context=parsed_resume,
-            chat_history=chat_history
+            chat_history=chat_history,
+            reference_answer=reference_answer,
+            key_points=key_points
         ):
             full_text += chunk
             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"

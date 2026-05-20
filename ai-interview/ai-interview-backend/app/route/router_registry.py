@@ -52,6 +52,11 @@ CLIENT_ROUTES = [
         prefix=f"{settings.API_V1_STR}/interviews",
         tags=["client-interview"]
     ),
+    RouteConfig(
+        module_path="app.api.client.v1.job_templates",
+        prefix=f"{settings.API_V1_STR}/job-templates",
+        tags=["client-job-templates"]
+    ),
 ]
 
 # 后台路由配置
@@ -85,6 +90,16 @@ BACKOFFICE_ROUTES = [
         module_path="app.api.backoffice.v1.interviews",
         prefix=f"{settings.API_V1_STR}/backoffice/interviews",
         tags=["backoffice-interviews"]
+    ),
+    RouteConfig(
+        module_path="app.api.backoffice.v1.questions",
+        prefix=f"{settings.API_V1_STR}/backoffice/questions",
+        tags=["backoffice-questions"]
+    ),
+    RouteConfig(
+        module_path="app.api.backoffice.v1.job_templates",
+        prefix=f"{settings.API_V1_STR}/backoffice/job-templates",
+        tags=["backoffice-job-templates"]
     ),
 ]
 

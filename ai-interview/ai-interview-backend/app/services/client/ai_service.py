@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 from openai import AsyncOpenAI
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -136,9 +137,10 @@ class AIService:
         parsed_resume: dict,
         target_position: str,
         difficulty: str,
-        count: int
+        count: int,
+        db: Optional[AsyncSession] = None
     ) -> list:
-        """根据简历和目标岗位生成面试题目"""
+        """根据简历和目标岗位生成面试题目（支持 RAG 增强）"""
         difficulty_map = {
             "easy": "初级，侧重基础知识和简单项目经验",
             "medium": "中级，涵盖技术深度和项目设计思路",
@@ -165,6 +167,28 @@ class AIService:
                 "- 考察解决实际问题的能力和技术深度\n"
             )
 
+        # RAG 增强：从题库中检索相关题目作为出题参考
+        rag_context = ""
+        if db is not None:
+            try:
+                from app.services.client.question_bank_service import QuestionBankService
+                rag_results = await QuestionBankService.search_similar(
+                    db,
+                    query_text=f"{target_position} {difficulty}",
+                    difficulty=difficulty,
+                    top_k=5
+                )
+                if rag_results:
+                    rag_context = "\n参考题库（可用于出题参考，不要直接照搬）：\n"
+                    for i, q in enumerate(rag_results, 1):
+                        rag_context += (
+                            f"{i}. 【{q['category']}】{q['content']}\n"
+                            f"   参考答案要点：{q.get('reference_answer', '无')[:100]}\n"
+                            f"   关键得分点：{q.get('key_points', [])}\n"
+                        )
+            except Exception as e:
+                logger.warning(f"RAG 检索失败，继续纯 LLM 出题: {e}")
+
         messages = [
             {
                 "role": "system",
@@ -176,8 +200,10 @@ class AIService:
                     "1. 结合候选人的项目经验和技术栈提问\n"
                     "2. 第一题是自我介绍\n"
                     "3. 覆盖技术深度、项目经验、基础知识\n"
-                    "4. 返回纯JSON数组格式（不要markdown代码块）\n"
-                    '格式：[{"index": 0, "question": "题目内容", "category": "分类"}]\n'
+                    "4. 每道题必须提供 reference_answer（参考答案要点，100-200字）和 key_points（3-5个关键得分点）\n"
+                    "5. 返回纯JSON数组格式（不要markdown代码块）\n"
+                    '格式：[{"index": 0, "question": "题目内容", "category": "分类", '
+                    '"reference_answer": "参考答案要点", "key_points": ["要点1", "要点2", "要点3"]}]\n'
                     "分类包括：self-intro, project, technical, coding, system-design"
                 )
             },
@@ -186,6 +212,7 @@ class AIService:
                 "content": (
                     f"候选人简历信息：{json.dumps(parsed_resume, ensure_ascii=False)}\n"
                     f"目标岗位：{target_position}\n"
+                    f"{rag_context}"
                     f"请生成{count}道面试题。"
                 )
             }
@@ -199,13 +226,25 @@ class AIService:
         answer: str,
         resume_context: dict,
         chat_history: list,
-        next_question: Optional[str] = None
+        next_question: Optional[str] = None,
+        reference_answer: str = "",
+        key_points: list = None
     ) -> dict:
-        """评估候选人的回答，返回评分和反馈"""
+        """评估候选人的回答，返回评分和反馈（支持参考答案注入）"""
         history_text = ""
         for msg in chat_history[-6:]:  # 保留最近6条消息，控制 token 用量
             role = "面试官" if msg["role"] == "interviewer" else "候选人"
             history_text += f"{role}: {msg['content']}\n"
+
+        # 构建参考答案和关键得分点提示
+        reference_hint = ""
+        if reference_answer or key_points:
+            reference_hint = ""
+            if reference_answer:
+                reference_hint += f"参考答案要点：{reference_answer}\n"
+            if key_points:
+                reference_hint += f"关键得分点：{json.dumps(key_points, ensure_ascii=False)}\n"
+            reference_hint += "请对比候选人的回答与参考答案，根据覆盖关键得分点的程度进行评分。\n"
 
         messages = [
             {
@@ -220,7 +259,8 @@ class AIService:
                     "- 7-8: 回答良好，基本正确\n"
                     "- 5-6: 回答一般，有明显不足\n"
                     "- 3-4: 回答较差，理解有误\n"
-                    "- 1-2: 基本没有回答到点上"
+                    "- 1-2: 基本没有回答到点上\n"
+                    "feedback 中应提及候选人是否覆盖了关键得分点"
                 )
             },
             {
@@ -229,6 +269,7 @@ class AIService:
                     f"候选人背景：{json.dumps(resume_context, ensure_ascii=False)}\n"
                     f"对话历史：\n{history_text}\n"
                     f"当前问题：{question}\n"
+                    f"{reference_hint}"
                     f"候选人回答：{answer}\n"
                     "请评估这个回答。"
                 )
@@ -242,20 +283,31 @@ class AIService:
         question: str,
         answer: str,
         resume_context: dict,
-        chat_history: list
+        chat_history: list,
+        reference_answer: str = "",
+        key_points: list = None
     ):
-        """流式版本：评估回答并逐块输出评语，最后输出 JSON 评分"""
+        """流式版本：评估回答并逐块输出评语，最后输出 JSON 评分（支持参考答案注入）"""
         history_text = ""
         for msg in chat_history[-6:]:
             role = "面试官" if msg["role"] == "interviewer" else "候选人"
             history_text += f"{role}: {msg['content']}\n"
+
+        # 构建参考答案和关键得分点提示
+        reference_hint = ""
+        if reference_answer or key_points:
+            if reference_answer:
+                reference_hint += f"参考答案要点：{reference_answer}\n"
+            if key_points:
+                reference_hint += f"关键得分点：{json.dumps(key_points, ensure_ascii=False)}\n"
+            reference_hint += "请对比候选人的回答与参考答案，根据覆盖关键得分点的程度进行评分。\n"
 
         messages = [
             {
                 "role": "system",
                 "content": (
                     "你是一个资深技术面试官，正在评估候选人的回答。\n"
-                    "请先用自然语言给出详细点评（100字左右），然后换行输出评分JSON。\n"
+                    "请先用自然语言给出详细点评（100字左右），点评中提及关键得分点的覆盖情况，然后换行输出评分JSON。\n"
                     "格式要求：\n"
                     "先输出点评文字，然后另起一行输出：\n"
                     '```json\n{"score": 7.5}\n```'
@@ -267,6 +319,7 @@ class AIService:
                     f"候选人背景：{json.dumps(resume_context, ensure_ascii=False)}\n"
                     f"对话历史：\n{history_text}\n"
                     f"当前问题：{question}\n"
+                    f"{reference_hint}"
                     f"候选人回答：{answer}\n"
                     "请评估这个回答。"
                 )

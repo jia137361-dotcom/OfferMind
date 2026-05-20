@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
 
+    # DashScope Embedding 配置 (RAG 题库)
+    DASHSCOPE_API_KEY: str = "your-dashscope-api-key"
+    DASHSCOPE_EMBEDDING_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    DASHSCOPE_EMBEDDING_MODEL: str = "text-embedding-v3"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"  # 可选，指定编码

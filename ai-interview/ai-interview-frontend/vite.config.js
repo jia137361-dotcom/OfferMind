@@ -8,12 +8,12 @@ export default defineConfig({
     proxy: {
       '/api': {
         // TODO: 改成你自己 VM 的 IP 地址
-        target: 'http://你的VM_IP地址:8006',
+        target: 'http://localhost:8006',
         changeOrigin: true
       },
       '/uploads': {
         // TODO: 改成你自己 VM 的 IP 地址
-        target: 'http://你的VM_IP地址:8006',
+        target: 'http://localhost:8006',
         changeOrigin: true
       }
     }

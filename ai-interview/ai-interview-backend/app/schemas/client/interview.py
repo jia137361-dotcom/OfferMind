@@ -50,3 +50,7 @@ class InterviewListItem(BaseSchema):
     total_questions: int
     status: str
     created_at: Optional[str] = None
+
+
+class AgentSetupRequest(BaseSchema):
+    resume_id: int
