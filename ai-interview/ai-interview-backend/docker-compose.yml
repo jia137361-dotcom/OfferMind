@@ -12,6 +12,8 @@ services:
       - REDIS_PORT=6379
     env_file:
       - .env
+    networks:
+      - app-network
     volumes:
       - ./logs:/app/logs
     depends_on:

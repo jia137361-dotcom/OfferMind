@@ -9,18 +9,15 @@ ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    pkg-config \
-    libpq-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (阿里云镜像加速)
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && apt-get install -y gcc g++ pkg-config libpq-dev curl && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file and install Python dependencies
+# Copy requirements file and install Python dependencies (阿里云 pip 镜像)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir langchain langchain-openai pgvector psycopg2-binary
 
 # Copy application code
