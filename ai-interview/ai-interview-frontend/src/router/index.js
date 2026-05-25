@@ -9,7 +9,7 @@ const routes = [
   { path: '/interview/:id', name: 'Interview', component: () => import('../views/Interview.vue'), meta: { auth: true } },
   { path: '/interview/:id/report', name: 'Report', component: () => import('../views/Report.vue'), meta: { auth: true } },
   { path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue'), meta: { auth: true } },
-  { path: '/', redirect: '/dashboard' }
+  { path: '/', name: 'Landing', component: () => import('../views/Landing.vue') }
 ]
 
 const router = createRouter({
