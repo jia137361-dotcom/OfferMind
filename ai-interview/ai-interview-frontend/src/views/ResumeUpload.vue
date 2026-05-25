@@ -327,7 +327,9 @@ function startStartingAnimation() {
     { target: 30, speed: 150, title: 'AI 面试即将开始，请做好准备' },
     { target: 60, speed: 200, title: 'AI 正在生成面试题目...' },
     { target: 85, speed: 350, title: '正在根据你的简历定制题目...' },
-    { target: 95, speed: 600, title: '即将开始...' }
+    { target: 70, speed: 800, title: 'AI 正在生成个性化面试题...' },
+    { target: 88, speed: 1500, title: '正在根据岗位定制评分标准...' },
+    { target: 95, speed: 3000, title: '即将开始...' }
   ]
   let stageIdx = 0
 

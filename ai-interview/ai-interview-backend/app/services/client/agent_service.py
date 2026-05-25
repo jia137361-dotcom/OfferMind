@@ -203,81 +203,84 @@ class InterviewAgentService:
         return [read_resume, build_candidate_profile, match_job_templates, start_specialized_interview]
 
     async def run_setup(self, resume_id: int) -> dict:
-        """运行 Agent 驱动的面试设置流程"""
-        tools = self._create_tools()
-
-        agent = create_agent(
-            model=self.llm,
-            tools=tools,
-            system_prompt=AGENT_SYSTEM_PROMPT
-        )
-
+        """运行 Agent 驱动的面试设置流程 — 优化版：直接从数据库读简历，跳过冗余 AI 调用"""
         try:
-            result = await agent.ainvoke({
-                "messages": [
-                    HumanMessage(
-                        content=f"我想为我的简历（ID: {resume_id}）开始面试流程，请帮我完成岗位匹配和面试设置。"
-                    )
-                ]
-            })
+            # 1. 直接从数据库读简历（已有解析结果，不再调 AI）
+            query = select(Resume).where(
+                Resume.id == resume_id,
+                Resume.user_id == self.user_id
+            )
+            result = await self.db.execute(query)
+            resume = result.scalar_one_or_none()
+            if not resume:
+                return {"success": False, "output": "简历不存在", "interview_id": None}
+            if resume.status != "completed":
+                return {"success": False, "output": f"简历状态: {resume.status}", "interview_id": None}
 
-            messages = result.get("messages", [])
-            output = ""
-            intermediate_steps = []
-            match_data = None
+            resume_data = json.loads(resume.parsed_content or "{}")
+            analysis_data = json.loads(resume.analysis or "{}")
 
-            for msg in messages:
-                if hasattr(msg, "content") and msg.type not in ("human", "system"):
-                    if msg.type == "ai":
-                        output += str(msg.content) + "\n"
-                    elif msg.type == "tool":
-                        tool_name = getattr(msg, "name", "unknown")
-                        content = str(msg.content)
-                        intermediate_steps.append({
-                            "tool": tool_name,
-                            "content": content[:500]
-                        })
-                        # 尝试从 match_job_templates 的结果中提取最佳匹配
-                        if tool_name == "match_job_templates":
-                            match_data = self._parse_match_result(content)
+            # 2. 获取活跃岗位模板
+            query = select(JobTemplate).where(JobTemplate.is_active == True)
+            result = await self.db.execute(query)
+            templates = result.scalars().all()
+            if not templates:
+                return {"success": False, "output": "没有可用岗位模板", "interview_id": None}
 
-            # 如果 Agent 没有自动创建面试，我们手动用最佳匹配创建
+            templates_info = [
+                {"id": t.id, "title": t.title, "description": t.description,
+                 "required_skills": t.required_skills, "preferred_skills": t.preferred_skills,
+                 "difficulty_level": t.difficulty_level}
+                for t in templates
+            ]
+
+            # 3. 一次 AI 调用完成画像摘要 + 岗位匹配
+            match_prompt = f"""请分析候选人信息并匹配最合适的岗位。
+
+候选人简历摘要：
+{json.dumps(resume_data, ensure_ascii=False)[:800]}
+
+简历分析结果：
+优势：{json.dumps(analysis_data.get('strengths', []), ensure_ascii=False)}
+技能：{json.dumps(analysis_data.get('keyword_match', []), ensure_ascii=False)}
+缺少技能：{json.dumps(analysis_data.get('missing_keywords', []), ensure_ascii=False)}
+
+可选岗位模板：
+{json.dumps(templates_info, ensure_ascii=False)}
+
+请直接选择最匹配的岗位并返回纯JSON（不要markdown代码块）：
+{{"selected_template_id": 1, "title": "岗位名", "fit_score": 85, "reason": "简短匹配理由", "difficulty": "medium"}}"""
+
+            messages = [{"role": "user", "content": match_prompt}]
+            match_result_str = await AIService._chat(messages, temperature=0.3)
+            match_data = self._parse_match_result(match_result_str)
+
+            # 4. 用最佳匹配直接创建面试
+            best = match_data.get("selected_template_id")
+            if not best and match_data.get("matches"):
+                best = match_data["matches"][0].get("template_id")
+
+            template_id = best or (templates[0].id if templates else None)
+            title = match_data.get("title") or templates[0].title
+            difficulty = match_data.get("difficulty", "medium")
+
             interview_id = None
-            if match_data:
-                best = match_data.get("best_match") or {}
-                if not best and match_data.get("matches"):
-                    # 取第一个匹配
-                    best = match_data["matches"][0]
-                template_id = best.get("template_id")
-                if template_id:
-                    try:
-                        interview_data = await InterviewService.start_interview(
-                            db=self.db,
-                            user_id=self.user_id,
-                            resume_id=resume_id,
-                            target_position=best.get("title", "技术岗位"),
-                            difficulty=best.get("difficulty_level", "medium"),
-                            total_questions=5
-                        )
-                        interview_id = interview_data["interview_id"]
-                    except Exception as e:
-                        logger.error(f"手动创建面试失败: {e}")
+            if template_id:
+                interview_data = await InterviewService.start_interview(
+                    db=self.db, user_id=self.user_id, resume_id=resume_id,
+                    target_position=title, difficulty=difficulty, total_questions=5
+                )
+                interview_id = interview_data["interview_id"]
 
             return {
                 "success": True,
-                "output": output.strip() or "Agent 执行完成",
-                "intermediate_steps": intermediate_steps,
+                "output": f"已匹配岗位「{title}」并创建面试",
                 "interview_id": interview_id,
                 "match": match_data
             }
         except Exception as e:
             logger.error(f"Agent 执行失败: {e}")
-            return {
-                "success": False,
-                "output": f"Agent 执行失败: {str(e)}",
-                "intermediate_steps": [],
-                "interview_id": None
-            }
+            return {"success": False, "output": str(e), "interview_id": None}
 
     @staticmethod
     def _parse_match_result(content: str) -> dict:
