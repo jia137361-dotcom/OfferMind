@@ -67,5 +67,5 @@ export function deleteInterview(interviewId) {
 }
 
 export function agentSetup(resumeId) {
-  return api.post('/interviews/agent-setup', { resume_id: resumeId })
+  return api.post('/interviews/agent-setup', { resume_id: resumeId }, { timeout: 300000 })
 }
