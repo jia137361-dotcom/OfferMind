@@ -14,12 +14,14 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     pkg-config \
-    default-libmysqlclient-dev \
+    libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir langchain langchain-openai pgvector psycopg2-binary
 
 # Copy application code
 COPY . .
@@ -33,11 +35,11 @@ RUN useradd --create-home --shell /bin/bash app \
 USER app
 
 # Expose port
-EXPOSE 8001
+EXPOSE 8006
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${API_PORT:-8001}/api/v1/config/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8006/api/v1/config/health')" || exit 1
 
 # Start command
 CMD ["python", "main.py"]
