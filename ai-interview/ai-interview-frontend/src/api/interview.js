@@ -65,3 +65,7 @@ export function getInterviews() {
 export function deleteInterview(interviewId) {
   return api.delete(`/interviews/${interviewId}`)
 }
+
+export function agentSetup(resumeId) {
+  return api.post('/interviews/agent-setup', { resume_id: resumeId })
+}

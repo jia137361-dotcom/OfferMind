@@ -116,8 +116,11 @@
           </select>
         </div>
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn-primary" style="width:100%" @click="handleStart" :disabled="starting">
+        <button class="btn-primary" style="width:100%" @click="handleStart" :disabled="starting || agentStarting">
           {{ starting ? '生成面试题中...' : '🚀 开始面试' }}
+        </button>
+        <button class="btn-agent" style="width:100%;margin-top:10px" @click="handleAgentStart" :disabled="starting || agentStarting">
+          {{ agentStarting ? 'Agent 分析中...' : '🤖 Agent 智能匹配面试' }}
         </button>
       </div>
 
@@ -154,7 +157,7 @@
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { uploadResume, getResume } from '../api/resume'
-import { startInterview } from '../api/interview'
+import { startInterview, agentSetup } from '../api/interview'
 
 const router = useRouter()
 const step = ref(1)
@@ -164,6 +167,7 @@ const difficulty = ref('medium')
 const totalQuestions = ref(5)
 const uploading = ref(false)
 const starting = ref(false)
+const agentStarting = ref(false)
 const error = ref('')
 const resumeId = ref(null)
 const parsedContent = ref(null)
@@ -374,6 +378,40 @@ async function handleStart() {
     starting.value = false
   }
 }
+
+async function handleAgentStart() {
+  error.value = ''
+  agentStarting.value = true
+  step.value = 'starting'
+  startStartingAnimation()
+  startingTitle.value = 'Agent 正在分析你的简历...'
+
+  try {
+    const result = await agentSetup(resumeId.value)
+    // Agent 返回的结果中查找 interview_id
+    const output = result.output || ''
+    const idMatch = output.match(/interview_id[:\s]+(\d+)/)
+    const interviewId = result.interview_id || (idMatch ? parseInt(idMatch[1]) : null)
+
+    if (interviewId) {
+      startProgress.value = 100
+      startingTitle.value = 'Agent 匹配完成！'
+      stopStartingAnimation()
+      await new Promise(r => setTimeout(r, 800))
+      router.push(`/interview/${interviewId}`)
+    } else {
+      stopStartingAnimation()
+      error.value = 'Agent 匹配完成但未自动创建面试。请手动选择岗位开始面试。'
+      step.value = 2
+    }
+  } catch (e) {
+    stopStartingAnimation()
+    error.value = e.message
+    step.value = 2
+  } finally {
+    agentStarting.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -409,6 +447,14 @@ async function handleStart() {
 
 .error { color: #ef4444; font-size: 13px; margin-bottom: 12px; }
 .parsed-info p { font-size: 14px; margin-bottom: 6px; line-height: 1.6; }
+
+.btn-agent {
+  height: 46px; border-radius: 14px; border: 2px solid var(--primary);
+  background: #fff; color: var(--primary); font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: all var(--transition); font-family: inherit;
+}
+.btn-agent:hover { background: var(--primary-light); }
+.btn-agent:disabled { opacity: .5; cursor: not-allowed; }
 
 .parsing-stage { text-align: center; padding: 32px 0; }
 .parsing-icon { font-size: 48px; margin-bottom: 16px; animation: pulse 1.5s ease-in-out infinite; }
