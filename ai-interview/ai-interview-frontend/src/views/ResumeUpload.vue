@@ -388,10 +388,7 @@ async function handleAgentStart() {
 
   try {
     const result = await agentSetup(resumeId.value)
-    // Agent 返回的结果中查找 interview_id
-    const output = result.output || ''
-    const idMatch = output.match(/interview_id[:\s]+(\d+)/)
-    const interviewId = result.interview_id || (idMatch ? parseInt(idMatch[1]) : null)
+    const interviewId = result.interview_id
 
     if (interviewId) {
       startProgress.value = 100
@@ -401,7 +398,7 @@ async function handleAgentStart() {
       router.push(`/interview/${interviewId}`)
     } else {
       stopStartingAnimation()
-      error.value = 'Agent 匹配完成但未自动创建面试。请手动选择岗位开始面试。'
+      error.value = 'Agent 匹配完成但未找到匹配的岗位模板。请手动选择岗位开始面试。'
       step.value = 2
     }
   } catch (e) {
